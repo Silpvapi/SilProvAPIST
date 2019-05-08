@@ -1,0 +1,161 @@
+*** Settings ***
+Library           OperatingSystem
+Library           requests
+Library           Collections
+Library           RequestsLibrary
+Library           json
+Library           JSONSchemaLibrary    D:/Robot/Silhouette_API/JsonSchemafiles
+
+*** Variables ***
+${ip}             https://10.150.50.193
+
+*** Test Cases ***
+POST_Create_Voicemail_Server
+    [Documentation]    Test Scenario:
+    ...    -----------------
+    ...    1. Create a new Voicemail server and validate status code.
+    ...    2. Retrieve the newly created voicemail server 'VMID' and set it as Global variable for UPDATE & DELETE voicemail server TC.
+    ...
+    ...    Pre-Condition:
+    ...    ------------------
+    ...    1. System should be up & running with Valid license.
+    ...    2. System should have user name and password as
+    ...     \ \ "admin:Quality1"
+    ...    If user name and password differs from the stated above TC fails at step one.
+    ...
+    ...    Important note:
+    ...    ------------------
+    ...    System shouldn't have any voicemail server name with "VMServerTestRobot".
+    [Tags]    Regression    System
+    [Timeout]    10 seconds
+    ${headers}    Create Dictionary    Authorization=Basic\ YWRtaW46UXVhbGl0eTE=    Content-Type=application/json; charset=UTF-8
+    ${settings}    Create Dictionary    mwiHostname=openlink    provisionUrl=http://10.151.110.140:8180/xmlapi/RequestServlet    versionUrl=http://10.151.110.140:8180/nowmessage/xml/label.xml    username=root    password=demosystem
+    ${payload}    Create Dictionary    name=VMServerTestRobot    ipAddress=10.151.130.32    port=5060    retrievalNumber=5555551234    outboundProxyIpAddress=10.55.43.101
+    ...    behindRTPProxyServer=false    connectionSettings=${settings}
+    Comment    Set Log Level    TRACE
+    Create Session    Base    ${ip}    ${headers}
+    ${result}    Post Request    Base    /api/v1/voicemailservers    ${payload}
+    log    ${result.status_code}
+    ${status_out}    Run Keyword And Return Status    Should Be Equal As Integers    ${result.status_code}    201
+    Run Keyword If    ${status_out}==False    Fail
+    log    ${status_out}
+    log    ${result.text}
+    ${getvmid}    Get Request    Base    /api/v1/voicemailservers
+    ${json} =    Set Variable    ${getvmid.json()}
+    ${vmservers} =    Get From Dictionary    ${json}    _embedded
+    ${KeysValue}=    Get From Dictionary    ${vmservers}    voicemailServer
+    Comment    log    ${KeysValue}
+    :FOR    ${index}    IN    @{KeysValue}
+    \    Log    ${index}
+    \    ${arraykey}=    Set Variable    ${index}
+    \    Log    ${arraykey['name']}
+    \    Run Keyword If    '${arraykey['name']}'=='VMServerTestRobot'    Exit For Loop
+    ${VMID}    Run Keyword And Return Status    Should Be Equal As Strings    ${arraykey['name']}    VMServerTestRobot
+    Run Keyword If    ${VMID}==False    Fail
+    ${NVMID}    Set Variable    ${arraykey['voicemailServerId']}
+    Set Global Variable    ${NVMID}
+    Log    ${NVMID}
+
+GET_Voicemail_Server_Details
+    [Documentation]    Test Scenario:
+    ...    ----------------
+    ...    1. GET Conference server details in system and validate JSON schema.
+    ...    2. GET newly created conference server 'confid' and validate its JSON data.
+    ...
+    ...    Pre-Condition:
+    ...    ------------------
+    ...    1. System should be up & running with Valid license.
+    ...    2. System should have user name and password as
+    ...    \ "admin:Quality1"
+    ...    If user name and password differs from the stated above TC fails at step one.
+    [Tags]    Regression    System
+    [Timeout]    10 seconds
+    ${headers}    Create Dictionary    Authorization=Basic\ YWRtaW46UXVhbGl0eTE=
+    Set Log Level    TRACE
+    Create Session    Base    ${ip}    ${headers}
+    ${result}    Get Request    Base    /api/v1/voicemailservers
+    log    ${result.status_code}
+    log    ${result.text}
+    Comment    ${json} =    Set Variable    ${result.json()}
+    Comment    Validate Json    confgetschema.json    ${json}
+    Comment    ${Confcount}=    Get From Dictionary    ${json}    count
+    Comment    Should Be Equal As Integers    ${Confcount['conferenceServer']}    2
+    Comment    ${Confcount}=    Get From Dictionary    ${json}    total
+    Comment    Should Be Equal As Integers    ${Confcount['conferenceServer']}    2
+    Comment    ${reference_links}=    Get From Dictionary    ${json}    _links
+    Comment    Should Be Equal As Strings    ${reference_links['self']}    {u'href': u'/api/v1/conferenceservers'}
+    Comment    Should Be Equal As Strings    ${reference_links['v1:itemTemplate']}    [{u'href': u'/api/v1/conferenceservers/{conferenceServerId}', u'templated': True}]
+    Comment    Should Be Equal As Strings    ${reference_links['v1options:conferenceServerType']}    [{u'href': u'/api/v1/enums/conferenceservertype'}]
+    Comment    ${conferenceservers} =    Get From Dictionary    ${json}    _embedded
+    Comment    ${KeysValue}=    Get From Dictionary    ${conferenceservers}    conferenceServer
+    Comment    log    ${KeysValue}
+    Comment    : FOR    ${index}    IN    @{KeysValue}
+    Comment    \    Log    ${index}
+    Comment    \    ${arraykey}=    Set Variable    ${index}
+    Comment    \    Log    ${arraykey['name']}
+    Comment    \    Run Keyword If    '${arraykey['name']}'=='ConferenceServerTestRobot'    Exit For Loop
+    Comment    ${status_out}    Run Keyword And Return Status    Should Be Equal As Strings    ${arraykey['name']}    ConferenceServerTestRobot
+    Comment    Run Keyword If    ${status_out}==False    Fail
+    Comment    Comment    ${ConferenceID}    Set Variable    ${arraykey['conferenceServerId']}
+    Comment    Should Be Equal    ${arraykey['conferenceServerType']}    ConferenceServerOpenLink    Error in conference server type
+    Comment    Should Be Equal    ${arraykey['ipAddress']}    10.151.110.101    Error in conference server ip address
+    Comment    Should Be Equal As Integers    ${arraykey['port']}    5060    Error in conference server port number
+    Comment    Comment    Set Global Variable    ${ConferenceID}
+    Comment    Comment    Log    ${ConferenceID}
+
+UPDATE_Voicemail_Server_Details
+    [Documentation]    Test Scenario:
+    ...    -----------------
+    ...    Update the newly created conference server details.
+    ...
+    ...    Pre-Condition:
+    ...    ------------------
+    ...    1. System should be up & running with Valid license.
+    ...    2. System should have user name and password as
+    ...    \ "admin:Quality1"
+    ...    If user name and password differs from the stated above TC fails at step one.
+    ...
+    ...    Important note:
+    ...    ------------------
+    ...    If POST_ConfServer_Details (previous TC) fails, this TC will automatically.
+    [Tags]    Regression    System
+    [Timeout]    10 seconds
+    ${headers}    Create Dictionary    Authorization=Basic\ YWRtaW46UXVhbGl0eTE=    Content-Type=application/json; charset=UTF-8
+    ${payload}    Create Dictionary    name=ConferenceServer961
+    Log    ${ConferenceID}
+    Create Session    Base    ${ip}    ${headers}
+    ${result}    Put Request    Base    /api/v1/conferenceservers/${ConferenceID}    ${payload}
+    log    ${result.status_code}
+    ${json} =    Set Variable    ${result.json()}
+    Log    ${json}
+    ${status_out}    Run Keyword And Return Status    Should Be Equal As Integers    ${result.status_code}    200
+    Run Keyword If    ${status_out}==False    Fail
+    log    ${status_out}
+
+DELETE_Voicemail_Server
+    [Documentation]    Test Scenario:
+    ...    -----------------
+    ...    Delete the newly created Conference server.
+    ...
+    ...    Pre-Condition:
+    ...    ------------------
+    ...    1. System should be up & running with Valid license.
+    ...    2. System should have user name and password as
+    ...    \ \ \ "admin:Quality1"
+    ...    If user name and password differs from the stated above TC fails at step one.
+    ...
+    ...    Important note:
+    ...    ------------------
+    ...    If GET_ConfServer_Details (previous TC) fails, this TC will automatically.
+    [Tags]    Regression    System
+    [Timeout]    10 seconds
+    ${headers}    Create Dictionary    Authorization=Basic\ YWRtaW46UXVhbGl0eTE=    Content-Type=application/json; charset=UTF-8
+    Log    ${ConferenceID}
+    Create Session    Base    ${ip}    ${headers}
+    ${result}    Delete Request    Base    /api/v1/conferenceservers/${ConferenceID}
+    log    ${result.status_code}
+    Log    ${result}
+    ${status_out}    Run Keyword And Return Status    Should Be Equal As Integers    ${result.status_code}    200
+    Run Keyword If    ${status_out}==False    Fail
+    log    ${status_out}
+    log    ${result.text}

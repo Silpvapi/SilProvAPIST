@@ -1,0 +1,160 @@
+*** Settings ***
+Library           OperatingSystem
+Library           requests
+Library           Collections
+Library           RequestsLibrary
+Library           json
+Library           JSONSchemaLibrary    D:/Robot/Silhouette_API/JsonSchemafiles
+
+*** Variables ***
+${ip}             https://10.150.50.193
+
+*** Test Cases ***
+POST_Media_Server
+    [Documentation]    Test Scenario:
+    ...    -----------------
+    ...    1. Create a new Media server and validate status code.
+    ...    2. Retrieve the newly created conference server 'confID' and set it as Global variable for UPDATE & DELETE conference server TC.
+    ...
+    ...    Pre-Condition:
+    ...    ------------------
+    ...    1. System should be up & running with Valid license.
+    ...    2. System should have user name and password as
+    ...    "admin:Quality1"
+    ...    If user name and password differs from the stated above TC fails at step one.
+    ...
+    ...    Important note:
+    ...    ------------------
+    ...    System shouldn't have any conference server name with "ConferenceServerTestRobot"
+    [Tags]    Regression    System
+    [Timeout]    10 seconds
+    ${headers}    Create Dictionary    Authorization=Basic\ YWRtaW46UXVhbGl0eTE=    Content-Type=application/json; charset=UTF-8
+    ${payload}    Create Dictionary    name=ConferenceServerTestRobot    ipAddress=10.151.110.101    port=5060    conferenceServerType=ConferenceServerOpenLink    maxConnections=20
+    ...    behindRTPProxyServer=false
+    Set Log Level    TRACE
+    Create Session    Base    ${ip}    ${headers}
+    ${result}    Post Request    Base    /api/v1/conferenceservers    ${payload}
+    log    ${result.status_code}
+    ${status_out}    Run Keyword And Return Status    Should Be Equal As Integers    ${result.status_code}    201
+    Run Keyword If    ${status_out}==False    Fail
+    log    ${status_out}
+    log    ${result.text}
+    ${GetResult}    Get Request    Base    /api/v1/conferenceservers
+    ${json} =    Set Variable    ${GetResult.json()}
+    ${conferenceservers} =    Get From Dictionary    ${json}    _embedded
+    ${KeysValue}=    Get From Dictionary    ${conferenceservers}    conferenceServer
+    log    ${KeysValue}
+    : FOR    ${index}    IN    @{KeysValue}
+    \    Log    ${index}
+    \    ${arraykey}=    Set Variable    ${index}
+    \    Log    ${arraykey['name']}
+    \    Run Keyword If    '${arraykey['name']}'=='ConferenceServerTestRobot'    Exit For Loop
+    ${ConfID}    Run Keyword And Return Status    Should Be Equal As Strings    ${arraykey['name']}    ConferenceServerTestRobot
+    Run Keyword If    ${ConfID}==False    Fail
+    ${ConferenceID}    Set Variable    ${arraykey['conferenceServerId']}
+    Set Global Variable    ${ConferenceID}
+    Log    ${ConferenceID}
+
+GET_MediaServer_Details
+    [Documentation]    Test Scenario:
+    ...    ----------------
+    ...    1. GET Conference server details in system and validate JSON schema.
+    ...    2. GET newly created conference server 'confid' and validate its JSON data.
+    ...
+    ...    Pre-Condition:
+    ...    ------------------
+    ...    1. System should be up & running with Valid license.
+    ...    2. System should have user name and password as
+    ...    \ "admin:Quality1"
+    ...    If user name and password differs from the stated above TC fails at step one.
+    [Tags]    Regression    System
+    [Timeout]    10 seconds
+    ${headers}    Create Dictionary    Authorization=Basic\ YWRtaW46UXVhbGl0eTE=
+    Set Log Level    TRACE
+    Create Session    Base    ${ip}    ${headers}
+    ${result}    Get Request    Base    /api/v1/conferenceservers
+    log    ${result.status_code}
+    log    ${result.text}
+    ${json} =    Set Variable    ${result.json()}
+    Validate Json    confgetschema.json    ${json}
+    ${Confcount}=    Get From Dictionary    ${json}    count
+    Should Be Equal As Integers    ${Confcount['conferenceServer']}    2
+    ${Confcount}=    Get From Dictionary    ${json}    total
+    Should Be Equal As Integers    ${Confcount['conferenceServer']}    2
+    ${reference_links}=    Get From Dictionary    ${json}    _links
+    Should Be Equal As Strings    ${reference_links['self']}    {u'href': u'/api/v1/conferenceservers'}
+    Should Be Equal As Strings    ${reference_links['v1:itemTemplate']}    [{u'href': u'/api/v1/conferenceservers/{conferenceServerId}', u'templated': True}]
+    Should Be Equal As Strings    ${reference_links['v1options:conferenceServerType']}    [{u'href': u'/api/v1/enums/conferenceservertype'}]
+    ${conferenceservers} =    Get From Dictionary    ${json}    _embedded
+    ${KeysValue}=    Get From Dictionary    ${conferenceservers}    conferenceServer
+    log    ${KeysValue}
+    : FOR    ${index}    IN    @{KeysValue}
+    \    Log    ${index}
+    \    ${arraykey}=    Set Variable    ${index}
+    \    Log    ${arraykey['name']}
+    \    Run Keyword If    '${arraykey['name']}'=='ConferenceServerTestRobot'    Exit For Loop
+    ${status_out}    Run Keyword And Return Status    Should Be Equal As Strings    ${arraykey['name']}    ConferenceServerTestRobot
+    Run Keyword If    ${status_out}==False    Fail
+    Comment    ${ConferenceID}    Set Variable    ${arraykey['conferenceServerId']}
+    Should Be Equal    ${arraykey['conferenceServerType']}    ConferenceServerOpenLink    Error in conference server type
+    Should Be Equal    ${arraykey['ipAddress']}    10.151.110.101    Error in conference server ip address
+    Should Be Equal As Integers    ${arraykey['port']}    5060    Error in conference server port number
+    Comment    Set Global Variable    ${ConferenceID}
+    Comment    Log    ${ConferenceID}
+
+UPDATE_MediaServer_Details
+    [Documentation]    Test Scenario:
+    ...    -----------------
+    ...    Update the newly created conference server details.
+    ...
+    ...    Pre-Condition:
+    ...    ------------------
+    ...    1. System should be up & running with Valid license.
+    ...    2. System should have user name and password as
+    ...    \ "admin:Quality1"
+    ...    If user name and password differs from the stated above TC fails at step one.
+    ...
+    ...    Important note:
+    ...    ------------------
+    ...    If POST_ConfServer_Details (previous TC) fails, this TC will automatically.
+    [Tags]    Regression    System
+    [Timeout]    10 seconds
+    ${headers}    Create Dictionary    Authorization=Basic\ YWRtaW46UXVhbGl0eTE=    Content-Type=application/json; charset=UTF-8
+    ${payload}    Create Dictionary    name=ConferenceServer961
+    Log    ${ConferenceID}
+    Create Session    Base    ${ip}    ${headers}
+    ${result}    Put Request    Base    /api/v1/conferenceservers/${ConferenceID}    ${payload}
+    log    ${result.status_code}
+    ${json} =    Set Variable    ${result.json()}
+    Log    ${json}
+    ${status_out}    Run Keyword And Return Status    Should Be Equal As Integers    ${result.status_code}    200
+    Run Keyword If    ${status_out}==False    Fail
+    log    ${status_out}
+
+DELETE_MediaServer
+    [Documentation]    Test Scenario:
+    ...    -----------------
+    ...    Delete the newly created Conference server.
+    ...
+    ...    Pre-Condition:
+    ...    ------------------
+    ...    1. System should be up & running with Valid license.
+    ...    2. System should have user name and password as
+    ...    \ \ \ "admin:Quality1"
+    ...    If user name and password differs from the stated above TC fails at step one.
+    ...
+    ...    Important note:
+    ...    ------------------
+    ...    If GET_ConfServer_Details (previous TC) fails, this TC will automatically.
+    [Tags]    Regression    System
+    [Timeout]    10 seconds
+    ${headers}    Create Dictionary    Authorization=Basic\ YWRtaW46UXVhbGl0eTE=    Content-Type=application/json; charset=UTF-8
+    Log    ${ConferenceID}
+    Create Session    Base    ${ip}    ${headers}
+    ${result}    Delete Request    Base    /api/v1/conferenceservers/${ConferenceID}
+    log    ${result.status_code}
+    Log    ${result}
+    ${status_out}    Run Keyword And Return Status    Should Be Equal As Integers    ${result.status_code}    200
+    Run Keyword If    ${status_out}==False    Fail
+    log    ${status_out}
+    log    ${result.text}
